@@ -1,0 +1,1024 @@
+<!doctype html>
+<html lang="ja" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>friskWeather 2</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+    }
+    
+    @keyframes scroll {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+    
+    .telop-scroll {
+      animation: scroll 30s linear infinite;
+      white-space: nowrap;
+    }
+    
+    .weather-card {
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .weather-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+    }
+    
+    .region-item {
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .region-item:hover {
+      transform: translateX(4px);
+    }
+    
+    .time-display {
+      font-family: 'Courier New', monospace;
+      letter-spacing: 2px;
+    }
+    
+    .weather-metric {
+      transition: transform 0.2s ease;
+    }
+    
+    .weather-metric:hover {
+      transform: scale(1.05);
+    }
+    
+    #radar-map {
+      height: 400px;
+      width: 100%;
+      border-radius: 12px;
+    }
+    
+    .leaflet-container {
+      border-radius: 12px;
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full">
+  <main id="app" class="h-full w-full overflow-auto"></main>
+  <script>
+    const defaultConfig = {
+      main_title: "friskWeather 2",
+      subtitle_text: "全国の天気情報をリアルタイムで",
+      footer_text: "データ提供：気象庁 / つくみ島API / Open-Meteo / ipapi",
+      background_color: "#0f172a",
+      card_color: "#ffffff",
+      text_color: "#1f2937",
+      primary_accent: "#3b82f6",
+      secondary_accent: "#8b5cf6",
+      font_family: "sans-serif",
+      font_size: 16
+    };
+
+    const regionsData = {
+      "北海道": {
+        "石狩地方": [
+          { name: "札幌", code: "016010", lat: 43.06, lon: 141.35 }
+        ],
+        "渡島地方": [
+          { name: "函館", code: "017010", lat: 41.77, lon: 140.73 }
+        ]
+      },
+      "青森県": {
+        "津軽地方": [
+          { name: "青森", code: "020010", lat: 40.82, lon: 140.75 }
+        ]
+      },
+      "岩手県": {
+        "内陸": [
+          { name: "盛岡", code: "030010", lat: 39.70, lon: 141.15 }
+        ]
+      },
+      "宮城県": {
+        "東部": [
+          { name: "仙台", code: "040010", lat: 38.27, lon: 140.87 }
+        ]
+      },
+      "秋田県": {
+        "沿岸": [
+          { name: "秋田", code: "050010", lat: 39.72, lon: 140.10 }
+        ]
+      },
+      "山形県": {
+        "村山": [
+          { name: "山形", code: "060010", lat: 38.25, lon: 140.34 }
+        ]
+      },
+      "福島県": {
+        "中通り": [
+          { name: "福島", code: "070010", lat: 37.75, lon: 140.47 }
+        ]
+      },
+      "茨城県": {
+        "南部": [
+          { name: "水戸", code: "080010", lat: 36.34, lon: 140.47 }
+        ]
+      },
+      "栃木県": {
+        "南部": [
+          { name: "宇都宮", code: "090010", lat: 36.56, lon: 139.88 }
+        ]
+      },
+      "群馬県": {
+        "南部": [
+          { name: "前橋", code: "100010", lat: 36.39, lon: 139.06 }
+        ]
+      },
+      "埼玉県": {
+        "南部": [
+          { name: "さいたま", code: "110010", lat: 35.86, lon: 139.65 }
+        ]
+      },
+      "千葉県": {
+        "北西部": [
+          { name: "千葉", code: "120010", lat: 35.61, lon: 140.12 }
+        ]
+      },
+      "東京都": {
+        "東京地方": [
+          { name: "東京", code: "130010", lat: 35.69, lon: 139.69 },
+          { name: "八王子", code: "130020", lat: 35.66, lon: 139.32 }
+        ],
+        "伊豆諸島": [
+          { name: "大島", code: "130040", lat: 34.75, lon: 139.36 }
+        ]
+      },
+      "神奈川県": {
+        "東部": [
+          { name: "横浜", code: "140010", lat: 35.44, lon: 139.64 }
+        ]
+      },
+      "新潟県": {
+        "下越": [
+          { name: "新潟", code: "150010", lat: 37.90, lon: 139.02 }
+        ]
+      },
+      "富山県": {
+        "東部": [
+          { name: "富山", code: "160010", lat: 36.70, lon: 137.21 }
+        ]
+      },
+      "石川県": {
+        "加賀": [
+          { name: "金沢", code: "170010", lat: 36.59, lon: 136.63 }
+        ]
+      },
+      "福井県": {
+        "嶺北": [
+          { name: "福井", code: "180010", lat: 36.06, lon: 136.22 }
+        ]
+      },
+      "山梨県": {
+        "中・西部": [
+          { name: "甲府", code: "190010", lat: 35.66, lon: 138.57 }
+        ]
+      },
+      "長野県": {
+        "北部": [
+          { name: "長野", code: "200010", lat: 36.65, lon: 138.19 }
+        ]
+      },
+      "岐阜県": {
+        "美濃地方": [
+          { name: "岐阜", code: "210010", lat: 35.42, lon: 136.76 }
+        ]
+      },
+      "静岡県": {
+        "中部": [
+          { name: "静岡", code: "220010", lat: 34.98, lon: 138.38 }
+        ]
+      },
+      "愛知県": {
+        "西部": [
+          { name: "名古屋", code: "230010", lat: 35.18, lon: 136.91 }
+        ]
+      },
+      "三重県": {
+        "北中部": [
+          { name: "津", code: "240010", lat: 34.73, lon: 136.51 }
+        ]
+      },
+      "滋賀県": {
+        "南部": [
+          { name: "大津", code: "250010", lat: 35.00, lon: 135.87 }
+        ]
+      },
+      "京都府": {
+        "南部": [
+          { name: "京都", code: "260010", lat: 35.02, lon: 135.75 }
+        ]
+      },
+      "大阪府": {
+        "大阪府": [
+          { name: "大阪", code: "270000", lat: 34.69, lon: 135.50 }
+        ]
+      },
+      "兵庫県": {
+        "南部": [
+          { name: "神戸", code: "280010", lat: 34.69, lon: 135.20 }
+        ]
+      },
+      "奈良県": {
+        "北部": [
+          { name: "奈良", code: "290010", lat: 34.69, lon: 135.83 }
+        ]
+      },
+      "和歌山県": {
+        "北部": [
+          { name: "和歌山", code: "300010", lat: 34.23, lon: 135.17 }
+        ]
+      },
+      "鳥取県": {
+        "東部": [
+          { name: "鳥取", code: "310010", lat: 35.50, lon: 134.24 }
+        ]
+      },
+      "島根県": {
+        "東部": [
+          { name: "松江", code: "320010", lat: 35.47, lon: 133.05 }
+        ]
+      },
+      "岡山県": {
+        "南部": [
+          { name: "岡山", code: "330010", lat: 34.66, lon: 133.92 }
+        ]
+      },
+      "広島県": {
+        "南部": [
+          { name: "広島", code: "340010", lat: 34.40, lon: 132.46 }
+        ]
+      },
+      "山口県": {
+        "西部": [
+          { name: "下関", code: "350010", lat: 33.96, lon: 130.94 }
+        ]
+      },
+      "徳島県": {
+        "北部": [
+          { name: "徳島", code: "360010", lat: 34.07, lon: 134.56 }
+        ]
+      },
+      "香川県": {
+        "香川県": [
+          { name: "高松", code: "370000", lat: 34.34, lon: 134.04 }
+        ]
+      },
+      "愛媛県": {
+        "中予": [
+          { name: "松山", code: "380010", lat: 33.84, lon: 132.77 }
+        ]
+      },
+      "高知県": {
+        "中部": [
+          { name: "高知", code: "390010", lat: 33.56, lon: 133.53 }
+        ]
+      },
+      "福岡県": {
+        "福岡地方": [
+          { name: "福岡", code: "400010", lat: 33.59, lon: 130.40 }
+        ]
+      },
+      "佐賀県": {
+        "南部": [
+          { name: "佐賀", code: "410010", lat: 33.25, lon: 130.30 }
+        ]
+      },
+      "長崎県": {
+        "南部": [
+          { name: "長崎", code: "420010", lat: 32.74, lon: 129.87 }
+        ]
+      },
+      "熊本県": {
+        "熊本地方": [
+          { name: "熊本", code: "430010", lat: 32.79, lon: 130.74 }
+        ]
+      },
+      "大分県": {
+        "中部": [
+          { name: "大分", code: "440010", lat: 33.24, lon: 131.61 }
+        ]
+      },
+      "宮崎県": {
+        "南部平野部": [
+          { name: "宮崎", code: "450010", lat: 31.91, lon: 131.42 }
+        ]
+      },
+      "鹿児島県": {
+        "薩摩地方": [
+          { name: "鹿児島", code: "460010", lat: 31.60, lon: 130.56 }
+        ]
+      },
+      "沖縄県": {
+        "本島中南部": [
+          { name: "那覇", code: "471010", lat: 26.21, lon: 127.68 }
+        ]
+      }
+    };
+
+    let selectedPrefecture = "東京都";
+    let selectedArea = "東京地方";
+    let selectedCity = null;
+    let weatherData = null;
+    let meteoData = null;
+    let typhoonData = [];
+    let radarMap = null;
+    let radarLayer = null;
+    let radarTimes = [];
+    let currentRadarIndex = 0;
+    let radarAnimationInterval = null;
+    let currentTime = new Date();
+    let autoDetectedLocation = null;
+
+    setInterval(() => {
+      currentTime = new Date();
+      updateTimeDisplay();
+    }, 10);
+
+    function updateTimeDisplay() {
+      const timeElement = document.getElementById('realtime-clock');
+      if (timeElement) {
+        const hours = String(currentTime.getHours()).padStart(2, '0');
+        const minutes = String(currentTime.getMinutes()).padStart(2, '0');
+        const seconds = String(currentTime.getSeconds()).padStart(2, '0');
+        const milliseconds = String(currentTime.getMilliseconds()).padStart(3, '0');
+        const subseconds = milliseconds.substring(0, 2);
+        
+        timeElement.textContent = `${hours}:${minutes}:${seconds}.${subseconds}`;
+      }
+    }
+
+    async function detectLocation() {
+      try {
+        const ipResponse = await fetch('https://api.ipify.org/?format=json');
+        const ipData = await ipResponse.json();
+        
+        const locationResponse = await fetch(`https://ipapi.co/${ipData.ip}/json/`);
+        const locationData = await locationResponse.json();
+        
+        if (locationData.city && locationData.region) {
+          autoDetectedLocation = {
+            city: locationData.city,
+            region: locationData.region,
+            lat: locationData.latitude,
+            lon: locationData.longitude
+          };
+          
+          let closestCity = null;
+          let minDistance = Infinity;
+          
+          for (const [prefecture, areas] of Object.entries(regionsData)) {
+            for (const [area, cities] of Object.entries(areas)) {
+              for (const city of cities) {
+                const distance = Math.sqrt(
+                  Math.pow(city.lat - locationData.latitude, 2) + 
+                  Math.pow(city.lon - locationData.longitude, 2)
+                );
+                if (distance < minDistance) {
+                  minDistance = distance;
+                  closestCity = { prefecture, area, city };
+                }
+              }
+            }
+          }
+          
+          if (closestCity) {
+            selectedPrefecture = closestCity.prefecture;
+            selectedArea = closestCity.area;
+            selectedCity = closestCity.city;
+          }
+        }
+      } catch (error) {
+        console.error('Location detection error:', error);
+      }
+    }
+
+    async function fetchWeatherData(city) {
+      try {
+        const response = await fetch(`https://weather.tsukumijima.net/api/forecast/city/${city.code}`);
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Weather data fetch error:', error);
+        return null;
+      }
+    }
+
+    async function fetchMeteoData(city) {
+      try {
+        const response = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&hourly=wind_gusts_10m,wind_speed_10m,cloudcover,snowfall,relative_humidity_2m&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&timezone=Asia/Tokyo`
+        );
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Meteo data fetch error:', error);
+        return null;
+      }
+    }
+
+    async function fetchTyphoonData() {
+      try {
+        const response = await fetch('https://www.data.jma.go.jp/developer/xml/feed/extra.xml');
+        const text = await response.text();
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, 'text/xml');
+        const entries = xml.querySelectorAll('entry');
+        
+        const typhoons = [];
+        entries.forEach(entry => {
+          const title = entry.querySelector('title')?.textContent || '';
+          if (title.includes('台風')) {
+            typhoons.push({
+              title: title,
+              updated: entry.querySelector('updated')?.textContent || ''
+            });
+          }
+        });
+        
+        return typhoons.slice(0, 3);
+      } catch (error) {
+        console.error('Typhoon data fetch error:', error);
+        return [];
+      }
+    }
+
+    async function fetchRadarTimes() {
+      try {
+        const response = await fetch('https://www.jma.go.jp/bosai/jmatile/data/nowc/targetTimes_N1.json');
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Radar times fetch error:', error);
+        return [];
+      }
+    }
+
+    function getWeatherEmoji(telop) {
+      if (!telop) return '☁️';
+      if (telop.includes('晴')) return '☀️';
+      if (telop.includes('曇')) return '☁️';
+      if (telop.includes('雨')) return '🌧️';
+      if (telop.includes('雪')) return '❄️';
+      if (telop.includes('雷')) return '⚡';
+      return '☁️';
+    }
+
+    function getWindDirection(degrees) {
+      const directions = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+      const index = Math.round(degrees / 45) % 8;
+      return directions[index];
+    }
+
+    function calculateFeelsLike(temp, humidity, windSpeed) {
+      if (temp >= 10) {
+        const humidityFactor = (humidity - 50) * 0.1;
+        return Math.round((temp + humidityFactor - windSpeed * 0.5) * 10) / 10;
+      } else {
+        const windChill = 13.12 + 0.6215 * temp - 11.37 * Math.pow(windSpeed * 3.6, 0.16) + 0.3965 * temp * Math.pow(windSpeed * 3.6, 0.16);
+        return Math.round(windChill * 10) / 10;
+      }
+    }
+
+    function initRadarMap() {
+      if (!selectedCity) return;
+      
+      const mapElement = document.getElementById('radar-map');
+      if (!mapElement) return;
+      
+      if (radarMap) {
+        radarMap.remove();
+      }
+      
+      radarMap = L.map('radar-map').setView([selectedCity.lat, selectedCity.lon], 9);
+      
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(radarMap);
+      
+      updateRadarLayer();
+    }
+
+    async function updateRadarLayer() {
+      if (!radarMap) return;
+      
+      radarTimes = await fetchRadarTimes();
+      if (radarTimes.length === 0) return;
+      
+      currentRadarIndex = radarTimes.length - 1;
+      displayRadarAtIndex(currentRadarIndex);
+      updateRadarTimeDisplay();
+    }
+
+    function displayRadarAtIndex(index) {
+      if (!radarMap || !radarTimes[index]) return;
+      
+      if (radarLayer) {
+        radarMap.removeLayer(radarLayer);
+      }
+      
+      const time = radarTimes[index].basetime;
+      const validtime = radarTimes[index].validtime;
+      
+      radarLayer = L.tileLayer(
+        `https://www.jma.go.jp/bosai/jmatile/data/nowc/${time}/none/${validtime}/surf/hrpns/{z}/{x}/{y}.png`,
+        {
+          opacity: 0.7,
+          maxZoom: 10
+        }
+      ).addTo(radarMap);
+    }
+
+    function updateRadarTimeDisplay() {
+      const timeDisplay = document.getElementById('radar-time-display');
+      if (timeDisplay && radarTimes[currentRadarIndex]) {
+        const time = new Date(radarTimes[currentRadarIndex].basetime);
+        timeDisplay.textContent = `表示時刻：${time.getHours()}時${String(time.getMinutes()).padStart(2, '0')}分`;
+      }
+    }
+
+    function playRadarAnimation() {
+      if (radarAnimationInterval) return;
+      
+      radarAnimationInterval = setInterval(() => {
+        currentRadarIndex = (currentRadarIndex + 1) % radarTimes.length;
+        displayRadarAtIndex(currentRadarIndex);
+        updateRadarTimeDisplay();
+      }, 500);
+    }
+
+    function stopRadarAnimation() {
+      if (radarAnimationInterval) {
+        clearInterval(radarAnimationInterval);
+        radarAnimationInterval = null;
+      }
+    }
+
+    async function renderApp() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const app = document.getElementById('app');
+      
+      const bgColor = config.background_color || defaultConfig.background_color;
+      const cardColor = config.card_color || defaultConfig.card_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const primaryAccent = config.primary_accent || defaultConfig.primary_accent;
+      const secondaryAccent = config.secondary_accent || defaultConfig.secondary_accent;
+      const fontFamily = config.font_family || defaultConfig.font_family;
+      const baseFontSize = config.font_size || defaultConfig.font_size;
+      const fontStack = `${fontFamily}, sans-serif`;
+
+      app.style.backgroundColor = bgColor;
+      app.style.color = cardColor;
+      app.style.fontFamily = fontStack;
+      
+      if (!selectedCity) {
+        selectedCity = regionsData[selectedPrefecture][selectedArea][0];
+      }
+      
+      app.innerHTML = `
+        <div style="min-height: 100%; display: flex; flex-direction: column;">
+          <header style="background: linear-gradient(135deg, ${primaryAccent}, ${secondaryAccent}); padding: ${baseFontSize * 1.5}px ${baseFontSize}px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="max-width: 1400px; margin: 0 auto;">
+              <h1 id="main-title" style="font-size: ${baseFontSize * 2}px; font-weight: bold; margin: 0; text-align: center; color: white;">${config.main_title || defaultConfig.main_title}</h1>
+              <p id="subtitle" style="font-size: ${baseFontSize}px; margin: ${baseFontSize * 0.5}px 0 0 0; text-align: center; opacity: 0.95; color: white;">${config.subtitle_text || defaultConfig.subtitle_text}</p>
+              <div style="margin-top: ${baseFontSize}px; display: flex; justify-content: center; align-items: center; gap: ${baseFontSize}px;">
+                <div class="time-display" id="realtime-clock" style="font-size: ${baseFontSize * 1.5}px; color: white; font-weight: bold;"></div>
+              </div>
+              ${autoDetectedLocation ? `
+                <div style="text-align: center; margin-top: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.875}px; color: white; opacity: 0.9;">
+                  📍 現在地：${autoDetectedLocation.city}（自動判定）
+                </div>
+              ` : ''}
+            </div>
+          </header>
+
+          <div id="telop-container" style="background-color: ${secondaryAccent}; color: white; padding: ${baseFontSize * 0.75}px 0; overflow: hidden;"></div>
+
+          <div style="flex: 1; padding: ${baseFontSize * 1.5}px ${baseFontSize}px; max-width: 1400px; margin: 0 auto; width: 100%;">
+            <div style="display: grid; grid-template-columns: 280px 1fr; gap: ${baseFontSize * 1.5}px;">
+              <aside style="background-color: ${cardColor}; padding: ${baseFontSize * 1.5}px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); height: fit-content;">
+                <h2 style="font-size: ${baseFontSize * 1.25}px; font-weight: bold; margin: 0 0 ${baseFontSize}px 0; color: ${textColor};">地域選択</h2>
+                
+                <div style="margin-bottom: ${baseFontSize}px;">
+                  <label for="prefecture-select" style="display: block; font-size: ${baseFontSize * 0.875}px; margin-bottom: ${baseFontSize * 0.25}px; color: ${textColor}; font-weight: 600;">都道府県</label>
+                  <select id="prefecture-select" style="width: 100%; padding: ${baseFontSize * 0.5}px; border: 2px solid ${primaryAccent}; border-radius: 6px; font-size: ${baseFontSize}px; color: ${textColor}; background-color: white;">
+                    ${Object.keys(regionsData).map(pref => 
+                      `<option value="${pref}" ${pref === selectedPrefecture ? 'selected' : ''}>${pref}</option>`
+                    ).join('')}
+                  </select>
+                </div>
+                
+                <div style="margin-bottom: ${baseFontSize}px;">
+                  <label for="area-select" style="display: block; font-size: ${baseFontSize * 0.875}px; margin-bottom: ${baseFontSize * 0.25}px; color: ${textColor}; font-weight: 600;">地域</label>
+                  <select id="area-select" style="width: 100%; padding: ${baseFontSize * 0.5}px; border: 2px solid ${primaryAccent}; border-radius: 6px; font-size: ${baseFontSize}px; color: ${textColor}; background-color: white;"></select>
+                </div>
+                
+                <div>
+                  <div style="display: block; font-size: ${baseFontSize * 0.875}px; margin-bottom: ${baseFontSize * 0.5}px; color: ${textColor}; font-weight: 600;">市町村</div>
+                  <div id="city-list" style="display: flex; flex-direction: column; gap: ${baseFontSize * 0.25}px;"></div>
+                </div>
+              </aside>
+
+              <div style="display: flex; flex-direction: column; gap: ${baseFontSize * 1.5}px;">
+                <div id="weather-today" class="weather-card" style="background-color: ${cardColor}; padding: ${baseFontSize * 2}px; border-radius: 16px; box-shadow: 0 8px 16px rgba(0,0,0,0.15);"></div>
+                
+                <div id="weather-tomorrow" class="weather-card" style="background-color: ${cardColor}; padding: ${baseFontSize * 1.5}px; border-radius: 16px; box-shadow: 0 8px 16px rgba(0,0,0,0.15);"></div>
+                
+                <div id="meteo-data-container" class="weather-card" style="background-color: ${cardColor}; padding: ${baseFontSize * 1.5}px; border-radius: 16px; box-shadow: 0 8px 16px rgba(0,0,0,0.15);"></div>
+                
+                <div id="radar-container" class="weather-card" style="background-color: ${cardColor}; padding: ${baseFontSize * 1.5}px; border-radius: 16px; box-shadow: 0 8px 16px rgba(0,0,0,0.15);">
+                  <h3 style="font-size: ${baseFontSize * 1.5}px; font-weight: bold; margin: 0 0 ${baseFontSize}px 0; color: ${textColor};">雨雲レーダー</h3>
+                  <div id="radar-time-display" style="text-align: center; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.875}px; color: ${textColor}; font-weight: 600;"></div>
+                  <div id="radar-map"></div>
+                  <div style="display: flex; justify-content: center; gap: ${baseFontSize}px; margin-top: ${baseFontSize}px;">
+                    <button id="radar-play" style="padding: ${baseFontSize * 0.5}px ${baseFontSize * 1.5}px; background-color: ${primaryAccent}; color: white; border: none; border-radius: 6px; font-size: ${baseFontSize}px; cursor: pointer; font-weight: 600;">再生</button>
+                    <button id="radar-stop" style="padding: ${baseFontSize * 0.5}px ${baseFontSize * 1.5}px; background-color: ${textColor}; color: white; border: none; border-radius: 6px; font-size: ${baseFontSize}px; cursor: pointer; font-weight: 600;">停止</button>
+                    <button id="radar-latest" style="padding: ${baseFontSize * 0.5}px ${baseFontSize * 1.5}px; background-color: ${secondaryAccent}; color: white; border: none; border-radius: 6px; font-size: ${baseFontSize}px; cursor: pointer; font-weight: 600;">最新に戻る</button>
+                  </div>
+                </div>
+                
+                <div id="typhoon-container" class="weather-card" style="background-color: ${cardColor}; padding: ${baseFontSize * 1.5}px; border-radius: 16px; box-shadow: 0 8px 16px rgba(0,0,0,0.15);"></div>
+              </div>
+            </div>
+          </div>
+
+          <footer style="background-color: ${cardColor}; padding: ${baseFontSize * 1.5}px; text-align: center; border-top: 2px solid ${primaryAccent}; margin-top: ${baseFontSize * 2}px;">
+            <p id="footer-text" style="font-size: ${baseFontSize * 0.875}px; margin: 0; color: ${textColor}; opacity: 0.8;">${config.footer_text || defaultConfig.footer_text}</p>
+          </footer>
+        </div>
+      `;
+
+      updateTimeDisplay();
+      setupRegionSelectors();
+      await updateWeatherDisplay();
+      initRadarMap();
+      setupRadarControls();
+      await updateTyphoonDisplay();
+    }
+
+    function setupRegionSelectors() {
+      const prefectureSelect = document.getElementById('prefecture-select');
+      const areaSelect = document.getElementById('area-select');
+      
+      prefectureSelect.addEventListener('change', (e) => {
+        selectedPrefecture = e.target.value;
+        selectedArea = Object.keys(regionsData[selectedPrefecture])[0];
+        selectedCity = regionsData[selectedPrefecture][selectedArea][0];
+        updateAreaSelect();
+        updateCityList();
+        updateWeatherDisplay();
+        if (radarMap) {
+          radarMap.setView([selectedCity.lat, selectedCity.lon], 9);
+          updateRadarLayer();
+        }
+      });
+      
+      areaSelect.addEventListener('change', (e) => {
+        selectedArea = e.target.value;
+        selectedCity = regionsData[selectedPrefecture][selectedArea][0];
+        updateCityList();
+        updateWeatherDisplay();
+        if (radarMap) {
+          radarMap.setView([selectedCity.lat, selectedCity.lon], 9);
+          updateRadarLayer();
+        }
+      });
+      
+      updateAreaSelect();
+      updateCityList();
+    }
+
+    function updateAreaSelect() {
+      const areaSelect = document.getElementById('area-select');
+      const areas = Object.keys(regionsData[selectedPrefecture]);
+      
+      areaSelect.innerHTML = areas.map(area => 
+        `<option value="${area}" ${area === selectedArea ? 'selected' : ''}>${area}</option>`
+      ).join('');
+    }
+
+    function updateCityList() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const baseFontSize = config.font_size || defaultConfig.font_size;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const primaryAccent = config.primary_accent || defaultConfig.primary_accent;
+      
+      const cityList = document.getElementById('city-list');
+      const cities = regionsData[selectedPrefecture][selectedArea];
+      
+      cityList.innerHTML = cities.map(city => `
+        <div class="region-item" data-code="${city.code}" style="padding: ${baseFontSize * 0.5}px ${baseFontSize * 0.75}px; border-radius: 6px; font-size: ${baseFontSize}px; cursor: pointer; background-color: ${city.code === selectedCity.code ? primaryAccent : 'transparent'}; color: ${city.code === selectedCity.code ? 'white' : textColor};">
+          ${city.name}
+        </div>
+      `).join('');
+      
+      document.querySelectorAll('.region-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+          const code = e.currentTarget.getAttribute('data-code');
+          selectedCity = cities.find(c => c.code === code);
+          updateCityList();
+          updateWeatherDisplay();
+          if (radarMap) {
+            radarMap.setView([selectedCity.lat, selectedCity.lon], 9);
+            updateRadarLayer();
+          }
+        });
+      });
+    }
+
+    async function updateWeatherDisplay() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const baseFontSize = config.font_size || defaultConfig.font_size;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const primaryAccent = config.primary_accent || defaultConfig.primary_accent;
+      const secondaryAccent = config.secondary_accent || defaultConfig.secondary_accent;
+      
+      weatherData = await fetchWeatherData(selectedCity);
+      meteoData = await fetchMeteoData(selectedCity);
+      
+      if (weatherData && weatherData.forecasts) {
+        const today = weatherData.forecasts[0];
+        const tomorrow = weatherData.forecasts[1];
+        
+        const todayDiv = document.getElementById('weather-today');
+        if (todayDiv && today) {
+          const emoji = getWeatherEmoji(today.telop);
+          todayDiv.innerHTML = `
+            <div style="text-align: center; color: ${textColor};">
+              <div style="font-size: ${baseFontSize * 5}px; margin-bottom: ${baseFontSize}px;">${emoji}</div>
+              <h2 style="font-size: ${baseFontSize * 2}px; font-weight: bold; margin: 0 0 ${baseFontSize * 0.5}px 0; color: ${primaryAccent};">${selectedCity.name} - 今日</h2>
+              <p style="font-size: ${baseFontSize * 1.5}px; margin: 0; font-weight: 600;">${today.telop || '情報なし'}</p>
+              ${today.temperature?.max?.celsius ? `
+                <div style="margin-top: ${baseFontSize * 1.5}px; display: flex; justify-content: center; gap: ${baseFontSize * 2}px;">
+                  <div>
+                    <span style="font-size: ${baseFontSize * 0.875}px; opacity: 0.7;">最高</span>
+                    <div style="font-size: ${baseFontSize * 2}px; font-weight: bold; color: ${secondaryAccent};">${today.temperature.max.celsius}°C</div>
+                  </div>
+                  <div>
+                    <span style="font-size: ${baseFontSize * 0.875}px; opacity: 0.7;">最低</span>
+                    <div style="font-size: ${baseFontSize * 2}px; font-weight: bold; color: ${primaryAccent};">${today.temperature.min?.celsius || '--'}°C</div>
+                  </div>
+                </div>
+              ` : ''}
+              ${meteoData && meteoData.current ? `
+                <div style="margin-top: ${baseFontSize * 1.5}px; padding: ${baseFontSize * 1.5}px; background-color: rgba(139, 92, 246, 0.1); border-radius: 12px;">
+                  <div style="text-align: center; margin-bottom: ${baseFontSize}px;">
+                    <div style="font-size: ${baseFontSize * 0.875}px; opacity: 0.7; margin-bottom: ${baseFontSize * 0.25}px;">🌡️ 体感温度</div>
+                    <div style="font-size: ${baseFontSize * 2.5}px; font-weight: bold; color: ${secondaryAccent};">${calculateFeelsLike(meteoData.current.temperature_2m, meteoData.current.relative_humidity_2m, meteoData.current.wind_speed_10m)}°C</div>
+                    <div style="font-size: ${baseFontSize * 0.75}px; opacity: 0.6; margin-top: ${baseFontSize * 0.25}px;">湿度・風速から算出</div>
+                  </div>
+                  <div style="display: flex; justify-content: center; gap: ${baseFontSize * 2}px; padding-top: ${baseFontSize}px; border-top: 1px solid rgba(139, 92, 246, 0.2);">
+                    <div style="text-align: center;">
+                      <div style="font-size: ${baseFontSize * 0.875}px; opacity: 0.7; margin-bottom: ${baseFontSize * 0.25}px;">💧 湿度</div>
+                      <div style="font-size: ${baseFontSize * 1.25}px; font-weight: bold;">${meteoData.current.relative_humidity_2m}%</div>
+                    </div>
+                    <div style="text-align: center;">
+                      <div style="font-size: ${baseFontSize * 0.875}px; opacity: 0.7; margin-bottom: ${baseFontSize * 0.25}px;">💨 風速</div>
+                      <div style="font-size: ${baseFontSize * 1.25}px; font-weight: bold;">${meteoData.current.wind_speed_10m} m/s</div>
+                    </div>
+                    <div style="text-align: center;">
+                      <div style="font-size: ${baseFontSize * 0.875}px; opacity: 0.7; margin-bottom: ${baseFontSize * 0.25}px;">🧭 風向</div>
+                      <div style="font-size: ${baseFontSize * 1.25}px; font-weight: bold;">${getWindDirection(meteoData.current.wind_direction_10m)}</div>
+                    </div>
+                  </div>
+                </div>
+              ` : ''}
+              ${today.chanceOfRain ? `
+                <div style="margin-top: ${baseFontSize}px;">
+                  <div style="font-size: ${baseFontSize * 0.875}px; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; opacity: 0.8;">☔ 降水確率</div>
+                  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: ${baseFontSize * 0.5}px;">
+                    <div style="padding: ${baseFontSize * 0.5}px; background-color: rgba(59, 130, 246, 0.1); border-radius: 6px;">
+                      <div style="font-size: ${baseFontSize * 0.75}px; opacity: 0.7;">0-6時</div>
+                      <div style="font-size: ${baseFontSize}px; font-weight: bold;">${today.chanceOfRain.T00_06 || '--'}</div>
+                    </div>
+                    <div style="padding: ${baseFontSize * 0.5}px; background-color: rgba(59, 130, 246, 0.1); border-radius: 6px;">
+                      <div style="font-size: ${baseFontSize * 0.75}px; opacity: 0.7;">6-12時</div>
+                      <div style="font-size: ${baseFontSize}px; font-weight: bold;">${today.chanceOfRain.T06_12 || '--'}</div>
+                    </div>
+                    <div style="padding: ${baseFontSize * 0.5}px; background-color: rgba(59, 130, 246, 0.1); border-radius: 6px;">
+                      <div style="font-size: ${baseFontSize * 0.75}px; opacity: 0.7;">12-18時</div>
+                      <div style="font-size: ${baseFontSize}px; font-weight: bold;">${today.chanceOfRain.T12_18 || '--'}</div>
+                    </div>
+                    <div style="padding: ${baseFontSize * 0.5}px; background-color: rgba(59, 130, 246, 0.1); border-radius: 6px;">
+                      <div style="font-size: ${baseFontSize * 0.75}px; opacity: 0.7;">18-24時</div>
+                      <div style="font-size: ${baseFontSize}px; font-weight: bold;">${today.chanceOfRain.T18_24 || '--'}</div>
+                    </div>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }
+        
+        const tomorrowDiv = document.getElementById('weather-tomorrow');
+        if (tomorrowDiv && tomorrow) {
+          const emoji = getWeatherEmoji(tomorrow.telop);
+          tomorrowDiv.innerHTML = `
+            <h3 style="font-size: ${baseFontSize * 1.5}px; font-weight: bold; margin: 0 0 ${baseFontSize}px 0; color: ${textColor};">明日の天気</h3>
+            <div style="display: flex; align-items: center; gap: ${baseFontSize * 1.5}px; color: ${textColor};">
+              <div style="font-size: ${baseFontSize * 3}px;">${emoji}</div>
+              <div style="flex: 1;">
+                <p style="font-size: ${baseFontSize * 1.25}px; margin: 0; font-weight: 600;">${tomorrow.telop || '情報なし'}</p>
+                ${tomorrow.temperature?.max?.celsius ? `
+                  <div style="display: flex; gap: ${baseFontSize}px; margin-top: ${baseFontSize * 0.5}px;">
+                    <span style="font-size: ${baseFontSize}px;">最高 <strong style="color: ${secondaryAccent};">${tomorrow.temperature.max.celsius}°C</strong></span>
+                    <span style="font-size: ${baseFontSize}px;">最低 <strong style="color: ${primaryAccent};">${tomorrow.temperature.min?.celsius || '--'}°C</strong></span>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }
+        
+        const telopContainer = document.getElementById('telop-container');
+        if (telopContainer && today.detail?.weather) {
+          telopContainer.innerHTML = `
+            <div class="telop-scroll" style="font-size: ${baseFontSize}px; display: inline-block;">
+              【${selectedCity.name}】${today.detail.weather}　　　
+            </div>
+          `;
+        }
+      }
+      
+      if (meteoData && meteoData.current) {
+        const current = meteoData.current;
+        const meteoDiv = document.getElementById('meteo-data-container');
+        if (meteoDiv) {
+          meteoDiv.innerHTML = `
+            <h3 style="font-size: ${baseFontSize * 1.5}px; font-weight: bold; margin: 0 0 ${baseFontSize}px 0; color: ${textColor};">詳細気象データ</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: ${baseFontSize}px;">
+              <div class="weather-metric" style="background-color: rgba(59, 130, 246, 0.1); padding: ${baseFontSize}px; border-radius: 8px; text-align: center; color: ${textColor};">
+                <div style="font-size: ${baseFontSize * 0.875}px; opacity: 0.7; margin-bottom: ${baseFontSize * 0.25}px;">現在気温</div>
+                <div style="font-size: ${baseFontSize * 1.75}px; font-weight: bold; color: ${primaryAccent};">${current.temperature_2m}°C</div>
+              </div>
+              <div class="weather-metric" style="background-color: rgba(59, 130, 246, 0.1); padding: ${baseFontSize}px; border-radius: 8px; text-align: center; color: ${textColor};">
+                <div style="font-size: ${baseFontSize * 0.875}px; opacity: 0.7; margin-bottom: ${baseFontSize * 0.25}px;">湿度</div>
+                <div style="font-size: ${baseFontSize * 1.75}px; font-weight: bold; color: ${primaryAccent};">${current.relative_humidity_2m}%</div>
+              </div>
+              <div class="weather-metric" style="background-color: rgba(59, 130, 246, 0.1); padding: ${baseFontSize}px; border-radius: 8px; text-align: center; color: ${textColor};">
+                <div style="font-size: ${baseFontSize * 0.875}px; opacity: 0.7; margin-bottom: ${baseFontSize * 0.25}px;">風速</div>
+                <div style="font-size: ${baseFontSize * 1.75}px; font-weight: bold; color: ${primaryAccent};">${current.wind_speed_10m} m/s</div>
+              </div>
+              <div class="weather-metric" style="background-color: rgba(59, 130, 246, 0.1); padding: ${baseFontSize}px; border-radius: 8px; text-align: center; color: ${textColor};">
+                <div style="font-size: ${baseFontSize * 0.875}px; opacity: 0.7; margin-bottom: ${baseFontSize * 0.25}px;">風向</div>
+                <div style="font-size: ${baseFontSize * 1.75}px; font-weight: bold; color: ${primaryAccent};">${getWindDirection(current.wind_direction_10m)}</div>
+              </div>
+            </div>
+          `;
+        }
+      }
+    }
+
+    async function updateTyphoonDisplay() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const baseFontSize = config.font_size || defaultConfig.font_size;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const secondaryAccent = config.secondary_accent || defaultConfig.secondary_accent;
+      
+      typhoonData = await fetchTyphoonData();
+      
+      const typhoonDiv = document.getElementById('typhoon-container');
+      if (typhoonDiv) {
+        if (typhoonData.length > 0) {
+          typhoonDiv.innerHTML = `
+            <h3 style="font-size: ${baseFontSize * 1.5}px; font-weight: bold; margin: 0 0 ${baseFontSize}px 0; color: ${textColor};">台風情報</h3>
+            <div style="display: flex; flex-direction: column; gap: ${baseFontSize * 0.75}px;">
+              ${typhoonData.map(typhoon => `
+                <div style="padding: ${baseFontSize}px; background-color: rgba(239, 68, 68, 0.1); border-left: 4px solid ${secondaryAccent}; border-radius: 6px; color: ${textColor};">
+                  <div style="font-size: ${baseFontSize}px; font-weight: 600;">${typhoon.title}</div>
+                  <div style="font-size: ${baseFontSize * 0.75}px; opacity: 0.7; margin-top: ${baseFontSize * 0.25}px;">${new Date(typhoon.updated).toLocaleString('ja-JP')}</div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        } else {
+          typhoonDiv.innerHTML = `
+            <h3 style="font-size: ${baseFontSize * 1.5}px; font-weight: bold; margin: 0 0 ${baseFontSize}px 0; color: ${textColor};">台風情報</h3>
+            <p style="font-size: ${baseFontSize}px; color: ${textColor}; text-align: center; padding: ${baseFontSize * 2}px;">現在、台風は発生していません</p>
+          `;
+        }
+      }
+    }
+
+    function setupRadarControls() {
+      const playBtn = document.getElementById('radar-play');
+      const stopBtn = document.getElementById('radar-stop');
+      const latestBtn = document.getElementById('radar-latest');
+      
+      if (playBtn) {
+        playBtn.addEventListener('click', playRadarAnimation);
+      }
+      
+      if (stopBtn) {
+        stopBtn.addEventListener('click', stopRadarAnimation);
+      }
+      
+      if (latestBtn) {
+        latestBtn.addEventListener('click', () => {
+          stopRadarAnimation();
+          currentRadarIndex = radarTimes.length - 1;
+          displayRadarAtIndex(currentRadarIndex);
+          updateRadarTimeDisplay();
+        });
+      }
+    }
+
+    async function onConfigChange(config) {
+      await renderApp();
+    }
+
+    const element = {
+      defaultConfig,
+      onConfigChange,
+      mapToCapabilities: (config) => ({
+        recolorables: [
+          {
+            get: () => config.background_color || defaultConfig.background_color,
+            set: (value) => {
+              if (window.elementSdk) {
+                window.elementSdk.setConfig({ background_color: value });
+              }
+            }
+          },
+          {
+            get: () => config.card_color || defaultConfig.card_color,
+            set: (value) => {
+              if (window.elementSdk) {
+                window.elementSdk.setConfig({ card_color: value });
+              }
+            }
+          },
+          {
+            get: () => config.text_color || defaultConfig.text_color,
+            set: (value) => {
+              if (window.elementSdk) {
+                window.elementSdk.setConfig({ text_color: value });
+              }
+            }
+          },
+          {
+            get: () => config.primary_accent || defaultConfig.primary_accent,
+            set: (value) => {
+              if (window.elementSdk) {
+                window.elementSdk.setConfig({ primary_accent: value });
+              }
+            }
+          },
+          {
+            get: () => config.secondary_accent || defaultConfig.secondary_accent,
+            set: (value) => {
+              if (window.elementSdk) {
+                window.elementSdk.setConfig({ secondary_accent: value });
+              }
+            }
+          }
+        ],
+        borderables: [],
+        fontEditable: {
+          get: () => config.font_family || defaultConfig.font_family,
+          set: (value) => {
+            if (window.elementSdk) {
+              window.elementSdk.setConfig({ font_family: value });
+            }
+          }
+        },
+        fontSizeable: {
+          get: () => config.font_size || defaultConfig.font_size,
+          set: (value) => {
+            if (window.elementSdk) {
+              window.elementSdk.setConfig({ font_size: value });
+            }
+          }
+        }
+      }),
+      mapToEditPanelValues: (config) => new Map([
+        ["main_title", config.main_title || defaultConfig.main_title],
+        ["subtitle_text", config.subtitle_text || defaultConfig.subtitle_text],
+        ["footer_text", config.footer_text || defaultConfig.footer_text]
+      ])
+    };
+
+    if (window.elementSdk) {
+      window.elementSdk.init(element);
+    }
+
+    (async () => {
+      await detectLocation();
+      await renderApp();
+    })();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9be4c7e9e219f661',t:'MTc2ODQ3Mzg5OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
+
